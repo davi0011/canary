@@ -21,7 +21,7 @@ def batch_jobs(
     *,
     jobs: list["canary.Job"],
     nodes: Literal["any", "same"] = "same",
-    layout: Literal["flat", "atomic"] = "flat",
+    layout: Literal["flat", "atomic", "hierarchical"] = "flat",
     count: int | None = None,
     duration: float | None = None,
     width: int | None = None,
