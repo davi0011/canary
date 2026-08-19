@@ -169,6 +169,7 @@ class Run(CanarySubcommand):
                 parameter_expr=args.parameter_expr,
                 owners=args.owners,
                 regex=args.regex_filter,
+                selector_file=getattr(args, "selector_file", None),
             )
         else:
             if isinstance(request, SpecIdsRequest):
@@ -195,6 +196,7 @@ class Run(CanarySubcommand):
                 parameter_expr=args.parameter_expr,
                 owners=args.owners,
                 regex=args.regex_filter,
+                selector_file=getattr(args, "selector_file", None),
             )
         inplace: bool = isinstance(request, ViewPathsRequest)
         view_t: ViewSettings | None = None

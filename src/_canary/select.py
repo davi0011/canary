@@ -56,11 +56,16 @@ extensibility.
 
 import dataclasses
 import datetime
+import fnmatch
 import hashlib
 import sys
+from abc import ABC
+from abc import abstractmethod
 from collections import deque
+from functools import cached_property
 from pathlib import Path
 from typing import TYPE_CHECKING
+from typing import ClassVar
 from typing import Generator
 from typing import Iterable
 
@@ -76,6 +81,7 @@ from .hookspec import hookimpl
 from .jobspec import Mask
 from .rules import Rule
 from .rules import RuntimeRule
+from .rules import RuleOutcome
 from .util import json_helper as json
 from .util import logging
 from .util.string import pluralize
@@ -88,7 +94,84 @@ if TYPE_CHECKING:
 
 logger = logging.get_logger(__name__)
 
+class AbstractSelectorPlugin(ABC):
+    """
+    Base class for test selection plugins.
+    Selector plugins take a selector file and filter a list of collected ``JobSpec`` objects down
+    to those specified in the file.
+    """
 
+    file_patterns: ClassVar[tuple[str, ...]] = ()
+
+    def __init__(self, file: str | Path) -> None:
+        self.file = Path(file)
+
+    @classmethod
+    def matches(cls, file: Path) -> bool:
+        """Check if this selector plugin matches the given file."""
+        name = file.name
+        for pattern in cls.file_patterns:
+            if fnmatch.fnmatchcase(name, pattern):
+                return True
+        return False
+
+    @abstractmethod
+    def select(self, specs: list["JobSpec"]) -> list["JobSpec"]:
+        """
+        Filter specs according to critera in self.file.
+
+        Args:
+            specs: Collected JobSpec instances.
+
+        Returns:
+            Selected subset of JobSpec instances.
+        """
+
+    @classmethod
+    def create(cls, plugin_manager, file: str | Path, specs: list["JobSpec"]) -> "AbstractSelectorPlugin":
+        path = Path(file)
+        if not path.exists():
+            raise FileNotFoundError(f"Selector file not found: {path}")
+        
+        plugin = plugin_manager.hook.canary_selector(file=path, specs=specs)
+        if plugin is None:
+            raise RuntimeError(f"No selector plugin found for file: {path}")
+        return plugin
+
+class FileSelectorRule(Rule):
+    """Selects specs using a selector file processes by an AbstractSelectorPlugin."""
+
+    def __init__(self, selector_file: str | Path, priority: int = 0) -> None:
+        super().__init__(priority=priority)
+        self.selector_file = Path(selector_file)
+        self.selected_ids: set[str] | None = None
+
+    @cached_property
+    def default_reason(self) -> str:
+        return f"Not specified in selector file `{self.selector_file.name}'"
+
+    def prepare(self, specs: list["JobSpec"], plugin_manager=None) -> None:
+        """
+        Initialize the rule by loading the selector file.
+        
+        Args:
+            specs: The list of all collected JobSpec instances.
+            plugin_manager: The plugin manager used to resolve the selector plugin.
+        """
+        if plugin_manager is None:
+            logger.error("Plugin manager not provided to FileSelectorRule.prepare")
+            return
+
+        plugin = AbstractSelectorPlugin.create(plugin_manager, self.selector_file, specs)
+        selected_specs = plugin.select(specs)
+        self.selected_ids = {spec.id for spec in selected_specs}
+        
+    def __call__(self, spec: "JobSpec") -> RuleOutcome:
+        if self.selected_ids is not None and spec.id not in self.selected_ids:
+            return RuleOutcome.failed(self.default_reason)
+        return RuleOutcome(True)
+
+    
 @dataclasses.dataclass(frozen=True)
 class SelectorSnapshot:
     """Serializable snapshot of a completed selection run.
@@ -150,10 +233,11 @@ class Selector:
         rules: The rule sequence applied during selection.
     """
 
-    def __init__(self, specs: list["JobSpec"], workspace: Path, rules: Iterable[Rule] = ()):
+    def __init__(self, specs: list["JobSpec"], workspace: Path, plugin_manager=None):
         self.specs = specs
         self.workspace = workspace
-        self.rules: list[Rule] = list(rules)
+        self.plugin_manager = plugin_manager
+        self.rules: list[Rule] = []
         self.masked: set[str] = set()
 
     def add_rule(self, rule: Rule) -> None:
@@ -169,6 +253,10 @@ class Selector:
         self.masked.clear()
         if self.rules:
             logger.info(f"[bold]Selecting[/] specs based on {len(self.rules)} rules")
+            for rule in self.rules:
+                if hasattr(rule, "prepare"):
+                    # Pass the plugin_manager to the prepare method
+                    rule.prepare(self.specs, plugin_manager=self.plugin_manager)
             for spec in self.specs:
                 if spec.mask:
                     continue
@@ -257,6 +345,13 @@ class Selector:
             "least 1 of its file assets.  regex is a python regular expression, see "
             "https://docs.python.org/3/library/re.html",
         )
+        group.add_argument(
+            "--selector-file",
+            dest="selector_file",
+            metavar="file",
+            help="Restrict selection to tests specified in selector file",
+        )
+
         if tagged == "required":
             group.add_argument("tag", help="Name this selection 'tag'")
         elif tagged == "optional":

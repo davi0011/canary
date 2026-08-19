@@ -42,6 +42,8 @@ from _canary.reporters.reporter import CanaryReporter
 from _canary.rules import Rule
 from _canary.rules import RuleOutcome
 from _canary.rules import RuntimeRule
+from _canary.select import AbstractSelectorPlugin
+from _canary.select import FileSelectorRule
 from _canary.select import RuntimeSelector
 from _canary.select import Selector
 from _canary.testcase import TestCase
@@ -90,6 +92,8 @@ __all__ = [
     "RuntimeSelector",
     "RuntimeRule",
     "RuleOutcome",
+    "AbstractSelectorPlugin",
+    "FileSelectorRule",
     "Mask",
     "centered_parameter_space",
     "list_parameter_space",

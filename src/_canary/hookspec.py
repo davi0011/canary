@@ -13,16 +13,19 @@ import pluggy
 from .plugins.types import CanarySubcommand
 
 if TYPE_CHECKING:
+    from pathlib import Path
     from .collect import Collector
     from .config.argparsing import Parser
     from .config.config import Config as CanaryConfig
     from .generate import Generator
     from .generator import AbstractTestGenerator
     from .job import Job
+    from _canary.jobspec import JobSpec
     from .launcher import Launcher
     from .pluginmanager import CanaryPluginManager
     from .resource_pool.rpool import Outcome
     from .runtest import Runner
+    from .select import AbstractSelectorPlugin
     from .select import RuntimeSelector
     from .select import Selector
     from .workspace import Session
@@ -252,6 +255,18 @@ def canary_select_report(selector: "Selector") -> None:
     Args:
         selector: The selector to report on.
     """
+
+@hookspec(firstresult=True)
+def canary_selector(
+    file: "Path", spec: "list[JobSpec]"
+) -> "AbstractSelectorPlugin | None":
+    """Returns an instance of AbstractSelectorPlugin for the given selector file.
+
+    Args:
+        file: The path to the selector file.
+        specs: The list of the collected JobSpec instances.
+    """
+    raise NotImplementedError
 
 
 # -------------------------------------------------------------------------

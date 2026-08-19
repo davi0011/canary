@@ -62,6 +62,7 @@ class Select(CanarySubcommand):
                 parameter_expr=args.parameter_expr,
                 owners=args.owners,
                 regex=args.regex_filter,
+                selector_file = getattr(args, "selector_file", None),
             )
             workspace.db.put_selection(
                 args.tag,
@@ -82,6 +83,7 @@ class Select(CanarySubcommand):
                 parameter_expr=args.parameter_expr,
                 owners=args.owners,
                 regex=args.regex_filter,
+                selector_file=getattr(args, "selector_file", None)
             )
             logger.info(f"To run this selection execute '[bold]canary run {args.tag}[/]'")
         return 0

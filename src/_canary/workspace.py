@@ -532,6 +532,7 @@ class Workspace:
         parameter_expr: str | None = None,
         owners: list[str] | None = None,
         regex: str | None = None,
+        selector_file: str | Path | None = None,
     ) -> list["JobSpec"]:
         """Selects job specifications from the database using filters and saves as a tag.
 
@@ -542,6 +543,7 @@ class Workspace:
             parameter_expr: Filter by parameter expressions.
             owners: Filter by owners.
             regex: Filter by regular expression.
+            selector_file: Filter by selector file
 
         Returns:
             The list of selected JobSpecs.
@@ -554,6 +556,7 @@ class Workspace:
             parameter_expr=parameter_expr,
             owners=owners,
             regex=regex,
+            selector_file=selector_file,
         )
         self.db.put_selection(
             tag,
@@ -573,6 +576,7 @@ class Workspace:
         parameter_expr: str | None = None,
         owners: list[str] | None = None,
         regex: str | None = None,
+        selector_file: str| Path | None = None,
     ) -> list["JobSpec"]:
         """Filters a list of JobSpecs using the provided rules.
 
@@ -583,11 +587,12 @@ class Workspace:
             parameter_expr: Filter by parameter expressions.
             owners: Filter by owners.
             regex: Filter by regular expression.
+            selector_file: Filter by selector file.
 
         Returns:
             The filtered list of JobSpecs.
         """
-        selector = select.Selector(resolved, self.root)
+        selector = select.Selector(resolved, self.root, plugin_manager=config.pluginmanager)
         if keyword_exprs:
             selector.add_rule(rules.KeywordRule(keyword_exprs))
         if parameter_expr:
@@ -598,6 +603,8 @@ class Workspace:
             selector.add_rule(rules.RegexRule(regex))
         if prefixes:
             selector.add_rule(rules.PrefixRule(prefixes=prefixes))
+        if selector_file:
+            selector.add_rule(select.FileSelectorRule(selector_file))
         specs = selector.run()
         return specs
 
@@ -610,6 +617,7 @@ class Workspace:
         parameter_expr: str | None = None,
         owners: list[str] | None = None,
         regex: str | None = None,
+        selector_file: str | Path | None = None,
     ) -> list["JobSpec"]:
         """Collects generators from paths and creates a tagged selection.
 
@@ -621,6 +629,7 @@ class Workspace:
             parameter_expr: Filter by parameters.
             owners: Filter by owners.
             regex: Filter by regex.
+            selector_file: Filter by selector file.
 
         Returns:
             The created selection of JobSpecs.
@@ -632,6 +641,7 @@ class Workspace:
             parameter_expr=parameter_expr,
             owners=owners,
             regex=regex,
+            selector_file=selector_file,
         )
         tag = tag or unique_random_name(self.db.tags)
         self.db.put_selection(
@@ -655,6 +665,7 @@ class Workspace:
         owners: list[str] | None = None,
         regex: str | None = None,
         ids: list[str] | None = None,
+        selector_file: str | Path | None = None,
     ) -> None:
         """Filters the provided specs in-place using selection rules.
 
@@ -665,8 +676,9 @@ class Workspace:
             owners: Filter by owners.
             regex: Filter by regex.
             ids: Filter by specific IDs.
+            selector_file: Filter by selector file.
         """
-        selector = select.Selector(specs, self.root)
+        selector = select.Selector(specs, self.root, plugin_manager=config.pluginmanager)
         if keyword_exprs:
             selector.add_rule(rules.KeywordRule(keyword_exprs))
         if parameter_expr:
@@ -677,6 +689,8 @@ class Workspace:
             selector.add_rule(rules.RegexRule(regex))
         if ids:
             selector.add_rule(rules.IDsRule(ids))
+        if selector_file:
+                selector.add_rule(select.FileSelectorRule(selector_file))
         if selector.rules:
             selector.run()
 
